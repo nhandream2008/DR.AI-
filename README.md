@@ -1,6 +1,16 @@
 # DR.AI+ — Hệ Thống Hỗ Trợ Chẩn Đoán Ung Thư Bằng AI
 
-Ứng dụng desktop hỗ trợ bác sĩ chẩn đoán hình ảnh y tế, sử dụng mô hình YOLOv8 để phát hiện khối u vú, phổi và não từ ảnh X-quang / MRI / CT.
+Ứng dụng desktop hỗ trợ bác sĩ chẩn đoán hình ảnh y tế, sử dụng mô hình **YOLOv26 Medium** để phát hiện khối u vú, phổi và não từ ảnh X-quang / MRI / CT.
+
+---
+
+## Giao Diện Ứng Dụng
+
+![Màn hình đăng nhập](https://github.com/nhandream2008/DR.AI-/blob/main/PICTURE/Screenshot%202026-01-18%20180525.png?raw=true)
+
+![Giao diện chính](https://github.com/nhandream2008/DR.AI-/blob/main/PICTURE/Screenshot%202026-01-19%20084704.png?raw=true)
+
+![Kết quả chẩn đoán](https://github.com/nhandream2008/DR.AI-/blob/main/PICTURE/Screenshot%202026-01-19%20084802.png?raw=true)
 
 ---
 
@@ -45,6 +55,7 @@ pip install torch torchvision --index-url https://download.pytorch.org/whl/cu118
 project/
 ├── main.py            # Phiên bản gốc
 ├── ai.py              # Phiên bản mở rộng (hỗ trợ ảnh kiểm chứng)
+├── train.py           # Script huấn luyện / fine-tuning model
 ├── taikhoang.txt      # File tài khoản bác sĩ (username:password)
 ├── UT_VU.pt           # Model YOLO — Ung thư vú
 ├── UT_PHOI.pt         # Model YOLO — Ung thư phổi
@@ -87,12 +98,69 @@ bacsi2:matkhau2
 
 > Các file `.pt` là trọng số tự train trên kiến trúc **YOLOv26 Medium**.
 
-Ngưỡng tin cậy mặc định: **conf = 0.45**, **IoU = 0.45**
-
-Kết quả phân loại:
+Kết quả phân loại theo ngưỡng tin cậy:
 - ≥ 50% → **PHÁT HIỆN** (cảnh báo đỏ)
 - 20–49% → **CÓ DẤU HIỆU** (cảnh báo vàng)
 - < 20% → **KHÔNG PHÁT HIỆN BẤT THƯỜNG** (xanh lá)
+
+---
+
+## Huấn Luyện Model (`train.py`)
+
+Script `train.py` hỗ trợ **fine-tuning** (train tiếp) từ model có sẵn, đồng thời tự động gộp thêm dữ liệu mới vào tập train gốc trước khi chạy.
+
+### Kết Quả Training
+
+![Biểu đồ training](https://github.com/nhandream2008/DR.AI-/blob/main/PICTURE/Screenshot%202026-01-18%20171912.png?raw=true)
+
+### Cấu Hình (`train.py`)
+
+Mở file `train.py` và chỉnh 3 biến đầu:
+
+```python
+DIR_GOC   = r"đường/dẫn/đến/dataset/gốc"   # Dataset gốc cần train
+DIR_MOI   = r"đường/dẫn/đến/dataset/mới"   # Dataset bổ sung (YOLO format)
+MODEL_PT  = r"đường/dẫn/đến/model.pt"      # Model cũ để fine-tune
+```
+
+### Chạy Training
+
+```bash
+python train.py
+```
+
+Script sẽ tự động thực hiện theo thứ tự:
+
+1. **Xóa cache cũ** — Tránh lỗi khi thêm data mới
+2. **Gộp dữ liệu thông minh** — Copy ảnh + nhãn từ `DIR_MOI` vào `DIR_GOC`, tự đổi tên file để tránh trùng; folder `test` được gộp vào `train`
+3. **Fine-tune model** — Load model `.pt` cũ và train tiếp với data đã gộp
+
+### Thông Số Training Mặc Định
+
+| Thông số | Giá trị | Ghi chú |
+|----------|---------|---------|
+| `epochs` | 100 | Số vòng lặp tối đa |
+| `imgsz` | 640 | Kích thước ảnh đầu vào |
+| `batch` | 16 | Số ảnh mỗi batch |
+| `patience` | 20 | Dừng sớm nếu không cải thiện |
+| `workers` | 0 | Bắt buộc = 0 trên Windows |
+| `conf` (infer) | 0.45 | Ngưỡng tin cậy khi chạy app |
+
+### Chuyển Đổi Class (`DOI_CLASS_VE_1`)
+
+```python
+DOI_CLASS_VE_1 = True   # Gom tất cả class từ data mới về class 1
+DOI_CLASS_VE_1 = False  # Giữ nguyên class ID từ data mới
+```
+
+> Chỉ bật `True` khi bạn chắc chắn class 0 trong data mới cũng là "khối u".
+
+### Output
+
+Model sau khi train được lưu tại:
+```
+NhanDream_AI_Project/KetQua_Final_U_Nao/weights/best.pt
+```
 
 ---
 
